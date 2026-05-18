@@ -61,8 +61,8 @@ PREFERRED_PROVIDER=google
 USE_VERTEX_AUTH=true
 VERTEX_PROJECT=<your-gcp-project-id>
 VERTEX_LOCATION=<your-vertex-location>
-BIG_MODEL=gemini-2.5-pro
-SMALL_MODEL=gemini-2.5-flash
+BIG_MODEL=gemini-3.1-pro-preview
+SMALL_MODEL=gemini-3.1-flash-lite
 ```
 
 clawgate GPT config:
@@ -86,6 +86,7 @@ CLAWGATE_SMALL_MODEL=gpt-5.2-codex
 - Gemini cannot be added to clawgate directly. Use a Gemini/Vertex Anthropic-compatible proxy or call Gemini CLI separately.
 - A Gemini proxy must run from its repository directory. Starting `uvicorn server:app` elsewhere can fail with `Could not import module "server"`.
 - Some Gemini proxies only map Claude model names containing `sonnet` or `haiku`; set Claude defaults accordingly to trigger Gemini model mapping.
+- Some Gemini proxy whitelists lag behind Google model releases. Add model IDs such as `gemini-3.1-pro-preview` and `gemini-3.1-flash-lite` before setting them in `.env`.
 - `gcloud auth application-default login` can fail in non-interactive shells at the verification code prompt. Existing `GOOGLE_APPLICATION_CREDENTIALS` service account JSON can be used where appropriate.
 - Avoid fallback launchers during quiet audits if they mutate provider state.
 
