@@ -8,6 +8,60 @@ https://github.com/2409324124/claude-code-multi-provider-skill
 
 ---
 
+## 与 ec7bc57 阶段的区别
+
+### 架构变化
+
+**ec7bc57 阶段**：只有文档和诊断脚本，没有路由器代码。README 描述了一个"目标架构"，但路由器本身不在仓库里。
+
+**当前版本**：新增了完整的路由器实现 `router/router.py`（~430行）。
+
+### 路由机制对比
+
+| 维度 | ec7bc57（旧） | 当前版本 |
+|------|-------------|---------|
+| **路由器代码** | 不在仓库里，只有文档描述 | `router/router.py`，FastAPI 实现 |
+| **Fallback** | 无（单后端直连） | 多层 fallback chain，每后端可配置顺序 |
+| **错误处理** | 无 | 分类：`retryable`（冷却+fallback）vs `fallback`（仅fallback） |
+| **Cooldown** | 无 | 内存字典，支持 Retry-After 头 |
+| **Stats** | 无 | 每后端 success/fail 计数 |
+| **Streaming** | 未处理 | 先检查 status_code，>=400 走 fallback，2xx 才 passthrough |
+| **Health 端点** | 无 | `GET /` 返回后端状态、统计、冷却、配置 |
+
+### 代码结构
+
+```
+router/router.py
+├── BACKENDS           # 4个后端配置（从 .env 读取）
+├── ROUTES             # 关键词→后端映射表
+├── FALLBACKS          # 每后端的 fallback 链
+├── EXTRA_RETRYABLE    # 每后端额外可重试状态码（如 GPT 的 400）
+├── _cooldowns         # 冷却状态（内存）
+├── _stats             # 统计计数（内存）
+├── classify_error()   # 错误分类核心函数
+├── proxy_request()    # 代理请求（streaming/非streaming）
+├── handle_messages()  # 主路由逻辑：遍历候选后端→fallback
+└── health()           # GET / 端点
+```
+
+### 路由流程
+
+```
+请求进入 → resolve_backend_name(model) → 得到 primary_name
+→ 构建 candidate_names = [primary] + FALLBACKS[primary]
+→ 遍历候选:
+   ├─ 跳过冷却中的
+   ├─ rewrite_model(body, backend)  # 替换模型名
+   ├─ proxy_request(...)            # 转发请求
+   ├─ classify_error(status, body)  # 分类错误
+   ├─ retryable → mark_cooldown + continue
+   ├─ fallback → continue（不冷却）
+   └─ success → return
+→ 全部失败 → 502
+```
+
+---
+
 ## 必须修的
 
 ### 1. SKILL.md YAML 头部（GitHub 预览报错）
