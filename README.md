@@ -22,15 +22,97 @@ Claude Code
      -> Gemini / SubAgent      http://127.0.0.1:8083
 ```
 
-Final Claude Code environment shape:
+## Router Features
+
+The router (`router.py`) implements intelligent multi-provider routing inspired by [LiteLLM](https://github.com/BerriAI/litellm):
+
+| Feature | Description |
+|---------|-------------|
+| **Keyword routing** | Model name → backend: `opus`→GPT, `sonnet`→DeepSeek, `haiku`→MiMo, `subagent`→Gemini |
+| **Fallback chains** | If primary backend fails, automatically tries next backend in chain |
+| **Error classification** | `retryable` (cooldown+fallback) vs `fallback` (fallback only, no cooldown) |
+| **Configurable retryable statuses** | Per-backend extra retryable status codes (e.g. GPT returns 400 for "no quota") |
+| **Cooldown** | Failed backends are cooled down for N seconds (configurable, respects `Retry-After` header) |
+| **Stats tracking** | Per-backend success/failure counts visible in health endpoint |
+| **Streaming passthrough** | Streaming responses pass through directly (can't retry mid-stream) |
+
+### Fallback Flow
+
+```
+Request → Primary Backend
+  ├─ Success → Return response
+  ├─ Retryable error (429, 5xx, quota exhaustion) → Cooldown + Try next fallback
+  ├─ Fallback error (4xx client error) → Try next fallback (no cooldown)
+  └─ All backends exhausted → Return 502
+```
+
+### Fallback Order (Default)
+
+| Primary | Fallback 1 | Fallback 2 | Fallback 3 |
+|---------|-----------|-----------|-----------|
+| GPT | MiMo | DeepSeek | Gemini |
+| DeepSeek | Gemini | MiMo | GPT |
+| MiMo | Gemini | DeepSeek | — |
+| Gemini | DeepSeek | MiMo | — |
+
+## Install
 
 ```bash
-ANTHROPIC_BASE_URL=http://127.0.0.1:8084
-ANTHROPIC_MODEL=router/opus
-ANTHROPIC_DEFAULT_OPUS_MODEL=router/opus
-ANTHROPIC_DEFAULT_SONNET_MODEL=router/sonnet
-ANTHROPIC_DEFAULT_HAIKU_MODEL=router/haiku
-CLAUDE_CODE_SUBAGENT_MODEL=router/subagent
+mkdir -p ~/.codex/skills
+cp -R claude-code-multi-provider ~/.codex/skills/
+chmod +x ~/.codex/skills/claude-code-multi-provider/scripts/diagnose.sh
+```
+
+## Router Setup
+
+The router source is in `claude-code-multi-provider/router/router.py`. Configuration template: `claude-code-multi-provider/router/.env.example`.
+
+```bash
+# Copy the router
+cp claude-code-multi-provider/router/router.py ~/tools/claude-code-router/router.py
+cp claude-code-multi-provider/router/pyproject.toml ~/tools/claude-code-router/pyproject.toml
+
+# Create .env from template (edit with your actual values)
+cp claude-code-multi-provider/router/.env.example ~/tools/claude-code-router/.env
+vim ~/tools/claude-code-router/.env
+
+# Install dependencies
+cd ~/tools/claude-code-router
+pip install fastapi uvicorn httpx python-dotenv
+# or: uv pip install fastapi uvicorn httpx python-dotenv
+
+# Start router
+setsid python router.py </dev/null >router.log 2>&1 &
+
+# Verify
+curl http://127.0.0.1:8084/
+```
+
+## Claude Code Settings
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8084",
+    "ANTHROPIC_MODEL": "router/sonnet",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "router/opus",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "router/sonnet",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "router/haiku",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "router/subagent"
+  }
+}
+```
+
+## Diagnose
+
+```bash
+~/.codex/skills/claude-code-multi-provider/scripts/diagnose.sh
+```
+
+Optional non-mutating launcher health checks:
+
+```bash
+~/.codex/skills/claude-code-multi-provider/scripts/diagnose.sh --health
 ```
 
 ## GPT Backend Notes
@@ -56,28 +138,3 @@ Validated raine/Codex models:
 | `gpt-5.3-codex-fast` | pass |
 | `gpt-5.4-mini-fast` | pass |
 | `gpt-5.3-codex-spark-fast` | fail for the tested ChatGPT account |
-
-## Install
-
-```bash
-mkdir -p ~/.codex/skills
-cp -R claude-code-multi-provider ~/.codex/skills/
-chmod +x ~/.codex/skills/claude-code-multi-provider/scripts/diagnose.sh
-```
-
-## Diagnose
-
-```bash
-~/.codex/skills/claude-code-multi-provider/scripts/diagnose.sh
-```
-
-Optional non-mutating launcher health checks:
-
-```bash
-~/.codex/skills/claude-code-multi-provider/scripts/diagnose.sh --health
-```
-
-`--health` checks `claude-router`, `claude-gpt`, and `claude-gemini` when those
-commands exist. It intentionally skips MiMo and DeepSeek direct `cc-switch`
-checks because checking those usually requires `cc-switch use`, which changes
-the active default provider.

@@ -29,13 +29,82 @@ Final target routing:
 
 Important: a fallback launcher such as `claude-auto` may run `cc-switch use mimo` or `cc-switch use deepseek`, so it can change the default provider. For diagnosis, prefer individual entrypoints.
 
+## Router Architecture
+
+The router (`router.py`) is a FastAPI proxy that sits between Claude Code and multiple LLM backends. It implements intelligent fallback inspired by LiteLLM.
+
+### Request Flow
+
+```
+Claude Code → Router (:8084) → Backend
+  ├─ Success → Return response
+  ├─ Retryable error (429, 5xx, quota) → Cooldown + Try next fallback
+  ├─ Fallback error (4xx) → Try next fallback (no cooldown)
+  └─ All backends exhausted → 502
+```
+
+### Error Classification
+
+The router classifies errors into two categories:
+
+| Class | Behavior | Trigger |
+|-------|----------|---------|
+| `retryable` | Cooldown + fallback | 429, 502, 503, 504, per-backend extra codes, quota exhaustion in body |
+| `fallback` | Fallback only, no cooldown | 4xx (except 429) |
+
+### Per-Backend Configurable Retryable Statuses
+
+Some backends return non-standard status codes for quota exhaustion. For example, GPT (`raine/claude-code-proxy`) returns 400 for "no quota". Configure via `.env`:
+
+```bash
+# GPT returns 400 for "no quota" — treat as retryable
+GPT_EXTRA_RETRYABLE=400
+```
+
+### Cooldown
+
+Failed backends are placed on cooldown for `COOLDOWN_SECONDS` (default 300s). If the backend returns a `Retry-After` header, that value is used instead.
+
+### Fallback Chains
+
+Configure per-backend fallback order in `.env`:
+
+```bash
+GPT_FALLBACKS=mimo,deepseek,gemini
+DEEPSEEK_FALLBACKS=gemini,mimo,gpt
+MIMO_FALLBACKS=gemini,deepseek
+GEMINI_FALLBACKS=deepseek,mimo
+```
+
+### Health Endpoint
+
+`GET /` returns backend status, stats, cooldown info, and configuration:
+
+```json
+{
+  "status": "ok",
+  "backends": {
+    "gpt": {
+      "base_url": "http://127.0.0.1:18765",
+      "model": "gpt-5.5",
+      "on_cooldown": true,
+      "cooldown_remaining_s": 245,
+      "stats": {"success": 0, "fail": 1, "cooldown": 0},
+      "extra_retryable": [400]
+    }
+  },
+  "fallbacks": {"gpt": ["mimo", "deepseek", "gemini"]},
+  "global_retryable_statuses": [429, 502, 503, 504]
+}
+```
+
 ## Provider Shapes
 
 Router config:
 
 ```bash
 ANTHROPIC_BASE_URL=http://127.0.0.1:8084
-ANTHROPIC_MODEL=router/opus
+ANTHROPIC_MODEL=router/sonnet
 ANTHROPIC_DEFAULT_OPUS_MODEL=router/opus
 ANTHROPIC_DEFAULT_SONNET_MODEL=router/sonnet
 ANTHROPIC_DEFAULT_HAIKU_MODEL=router/haiku
@@ -127,6 +196,7 @@ Use clawgate as a fallback only. In the local integration, clawgate ChatGPT mode
 - Avoid fallback launchers during quiet audits if they mutate provider state.
 - Claude Code settings can override shell-level `ANTHROPIC_MODEL=...` exports. For reliable route validation, update settings or use an entrypoint that fully controls the process environment.
 - The router must strip incoming auth headers before forwarding. Do not pass `authorization`, `x-api-key`, `anthropic-api-key`, or `anthropic-auth-token` from Claude Code into arbitrary provider backends.
+- Claude Code's native `--fallback-model` only works in `--print` mode and only handles overloaded (529) errors. It does NOT support cross-provider fallback (different API endpoints). The router is the correct solution for multi-provider fallback.
 
 ## Safe Workflow
 
