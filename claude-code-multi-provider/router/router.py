@@ -35,27 +35,40 @@ load_dotenv()
 
 app = FastAPI()
 
+
+def clean_key(value: str | None) -> str | None:
+    """Ignore empty or template placeholder API keys."""
+    if not value:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if stripped.startswith("your-") or stripped.endswith("-here"):
+        return None
+    return stripped
+
+
 # ─── Backend configs ──────────────────────────────────────────────────────────
 BACKENDS = {
     "gpt": {
         "base_url": os.getenv("GPT_BASE_URL", "http://127.0.0.1:18765"),
         "model": os.getenv("GPT_MODEL", "gpt-5.5"),
-        "api_key": os.getenv("GPT_API_KEY"),
+        "api_key": clean_key(os.getenv("GPT_API_KEY")),
     },
     "mimo": {
         "base_url": os.getenv("MIMO_BASE_URL", "https://token-plan-sgp.xiaomimimo.com/anthropic"),
         "model": os.getenv("MIMO_MODEL", "mimo-v2.5-pro"),
-        "api_key": os.getenv("MIMO_API_KEY"),
+        "api_key": clean_key(os.getenv("MIMO_API_KEY")),
     },
     "deepseek": {
         "base_url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/anthropic"),
         "model": os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro"),
-        "api_key": os.getenv("DEEPSEEK_API_KEY"),
+        "api_key": clean_key(os.getenv("DEEPSEEK_API_KEY")),
     },
     "gemini": {
         "base_url": os.getenv("GEMINI_BASE_URL", "http://127.0.0.1:8083"),
         "model": os.getenv("GEMINI_MODEL", "claude-3-5-haiku-latest"),
-        "api_key": os.getenv("GEMINI_API_KEY"),
+        "api_key": clean_key(os.getenv("GEMINI_API_KEY")),
     },
 }
 
@@ -252,6 +265,23 @@ async def proxy_request(method: str, path: str, query: str, headers_in: dict,
                 content=json.dumps({"type": "error", "error": {"type": "api_error", "message": str(exc)}}),
                 status_code=502, media_type="application/json",
                 headers={"x-route-backend": backend.get("model", ""), "x-route-status": "request_error"},
+            )
+
+        # Check status before committing to stream.
+        # If backend returned error (4xx/5xx), read body and return as regular Response
+        # so the caller can classify the error and potentially fallback.
+        if backend_response.status_code >= 400:
+            content = await backend_response.aread()
+            await backend_response.aclose()
+            await client.aclose()
+            return Response(
+                content=content,
+                status_code=backend_response.status_code,
+                media_type=backend_response.headers.get("content-type", "application/json").split(";")[0],
+                headers={
+                    "x-route-backend": backend.get("model", ""),
+                    "x-route-status": str(backend_response.status_code),
+                },
             )
 
         async def stream_response():

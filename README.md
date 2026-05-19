@@ -40,14 +40,12 @@ The router (`router.py`) implements intelligent multi-provider routing inspired 
 
 ### Streaming Limitations
 
-Streaming mode (`stream: true`) has an inherent constraint: **fallback only works before the first response is sent**. Once the backend starts streaming (200 status), the router cannot intercept or retry mid-stream.
+Streaming mode (`stream: true`) supports fallback **before** the response body is streamed. The router checks the HTTP status code immediately after connecting to the backend:
 
-This means:
-- If the backend returns a non-200 status (429, 5xx, etc.) **before** streaming starts → fallback works normally
-- If the backend returns 200 but the SSE stream contains errors **during** generation → no fallback, error is passed through to Claude Code
-- This is a fundamental limitation of SSE streaming, not a router bug
+- If the backend returns a non-200 status (429, 5xx, etc.) → router reads the error body, closes the connection, and triggers fallback to the next backend
+- If the backend returns 200 → router commits to streaming and passes chunks through to Claude Code
 
-For most LLM backends, quota/rate-limit errors are returned as non-200 HTTP status codes, so fallback works correctly in practice.
+Once streaming starts (200 status), the router cannot intercept or retry mid-stream. If the SSE stream contains errors **during** generation, they are passed through to Claude Code directly. This is a fundamental limitation of SSE streaming.
 
 ### Fallback Flow
 
@@ -107,7 +105,7 @@ curl http://127.0.0.1:8084/
 {
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:8084",
-    "ANTHROPIC_MODEL": "router/sonnet",
+    "ANTHROPIC_MODEL": "router/opus",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "router/opus",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "router/sonnet",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "router/haiku",

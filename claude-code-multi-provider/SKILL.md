@@ -1,10 +1,9 @@
 ---
 name: claude-code-multi-provider
 description: >-
-  Use when configuring, debugging, or auditing a Claude Code multi-provider
-  setup with GPT via raine/claude-code-proxy or clawgate, MiMo Token Plan,
-  DeepSeek official Claude Code Anthropic API, Gemini via Vertex ADC proxy,
-  cc-switch profiles, and provider fallback launchers.
+  Configure, debug, and audit a Claude Code multi-provider setup with GPT,
+  DeepSeek, MiMo, Gemini, local tier routing, fallback chains, cc-switch
+  profiles, and read-only diagnostics.
 ---
 
 # Claude Code Multi-Provider
