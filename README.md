@@ -1,4 +1,6 @@
-# Claude Code Multi-Provider Skill
+# Claude Code Multi-Provider Router
+
+Make Claude Code route Opus/Sonnet/Haiku/SubAgent requests to GPT, DeepSeek, MiMo, and Gemini through an Anthropic-compatible local proxy. Includes a Codex skill, read-only diagnostics, cooldown-aware fallback, and secret-masked auditing.
 
 A Codex skill for configuring, auditing, and troubleshooting a Claude Code
 multi-provider setup with a local tier router:
@@ -34,7 +36,18 @@ The router (`router.py`) implements intelligent multi-provider routing inspired 
 | **Configurable retryable statuses** | Per-backend extra retryable status codes (e.g. GPT returns 400 for "no quota") |
 | **Cooldown** | Failed backends are cooled down for N seconds (configurable, respects `Retry-After` header) |
 | **Stats tracking** | Per-backend success/failure counts visible in health endpoint |
-| **Streaming passthrough** | Streaming responses pass through directly (can't retry mid-stream) |
+| **Streaming passthrough** | Streaming responses pass through directly (see streaming limitations below) |
+
+### Streaming Limitations
+
+Streaming mode (`stream: true`) has an inherent constraint: **fallback only works before the first response is sent**. Once the backend starts streaming (200 status), the router cannot intercept or retry mid-stream.
+
+This means:
+- If the backend returns a non-200 status (429, 5xx, etc.) **before** streaming starts → fallback works normally
+- If the backend returns 200 but the SSE stream contains errors **during** generation → no fallback, error is passed through to Claude Code
+- This is a fundamental limitation of SSE streaming, not a router bug
+
+For most LLM backends, quota/rate-limit errors are returned as non-200 HTTP status codes, so fallback works correctly in practice.
 
 ### Fallback Flow
 
