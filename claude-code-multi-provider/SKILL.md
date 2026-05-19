@@ -107,12 +107,33 @@ Router config:
 
 ```bash
 ANTHROPIC_BASE_URL=http://127.0.0.1:8084
-ANTHROPIC_MODEL=router/sonnet
+ANTHROPIC_MODEL=router/opus
 ANTHROPIC_DEFAULT_OPUS_MODEL=router/opus
 ANTHROPIC_DEFAULT_SONNET_MODEL=router/sonnet
 ANTHROPIC_DEFAULT_HAIKU_MODEL=router/haiku
 CLAUDE_CODE_SUBAGENT_MODEL=router/subagent
 ```
+
+## Authentication Model
+
+This setup uses mixed authentication. The router is not a vault for every provider credential:
+
+| Hop | Auth mechanism | Stored where |
+|---|---|---|
+| Claude Code -> router | Local placeholder token such as `ANTHROPIC_AUTH_TOKEN=local-router` | `~/.claude/settings.json` or wrapper env |
+| router -> GPT | No API key in router; `raine-claude-code-proxy` performs Codex/ChatGPT device auth | `~/.config/claude-code-proxy/codex/auth.json` |
+| router -> Gemini | No API key in router; Gemini proxy performs Google/Vertex auth | service-account JSON, ADC, or Gemini OAuth files |
+| router -> DeepSeek | Router injects `DEEPSEEK_API_KEY` | router `.env` |
+| router -> MiMo | Router injects `MIMO_API_KEY` | router `.env` |
+
+`GPT_API_KEY` and `GEMINI_API_KEY` are normally unset in this architecture. Do not copy OAuth refresh tokens, Google service-account JSON contents, or ChatGPT session data into the router `.env`.
+
+Provider-specific diagnostic order:
+
+1. GPT: check `raine-claude-code-proxy codex auth status`, local port `18765`, and the raine proxy log.
+2. Gemini: check Google/Vertex credentials and local port `8083`.
+3. DeepSeek and MiMo: check router `.env` keys and endpoint URLs.
+4. Router: check local port `8084`, health endpoint, fallback stats, and cooldowns.
 
 Route meanings:
 
@@ -188,6 +209,7 @@ Use clawgate as a fallback only. In the local integration, clawgate ChatGPT mode
 - clawgate may not stay resident reliably with plain `nohup`. Use `setsid ... >log 2>&1 < /dev/null &`.
 - clawgate ChatGPT mode warned that `gpt-5.5` was not in its known Codex model allowlist, and Opus requests through clawgate timed out under the 20 second acceptance window.
 - `raine/claude-code-proxy` v0.0.13 successfully handled GPT-5.5 with Codex device auth in the tested setup.
+- GPT and Gemini usually do not need API keys in router `.env`; their upstream auth is handled by local proxy login/credential files.
 - `cc-switch status` can show custom providers as `Active: unknown`. Check the URL and profile config.
 - Do not use old DeepSeek `deepseek-chat` / `deepseek-reasoner` mappings for Claude Code if the official docs specify v4 Claude Code models.
 - Do not copy terminal style artifacts like `[1m]` into model names. Treat them as ANSI formatting remnants unless the provider model list explicitly includes them.
@@ -207,8 +229,10 @@ For status-only tasks:
 
 1. Run the bundled diagnostic script.
 2. Read masked provider config.
-3. Avoid running `cc-switch use ...` unless the user asked to switch providers.
-4. Avoid `claude-auto` unless the user accepts provider mutation.
+3. For GPT/Gemini, inspect local proxy auth and listener state before looking for router API keys.
+4. For DeepSeek/MiMo, inspect router `.env` key presence and endpoint URLs.
+5. Avoid running `cc-switch use ...` unless the user asked to switch providers.
+6. Avoid `claude-auto` unless the user accepts provider mutation.
 
 For non-mutating launcher health checks:
 

@@ -24,6 +24,20 @@ Claude Code
      -> Gemini / SubAgent      http://127.0.0.1:8083
 ```
 
+## Authentication Model
+
+This setup uses mixed authentication. The router is not a vault for every provider credential:
+
+| Hop | Auth mechanism | Stored where |
+|---|---|---|
+| Claude Code -> router | Local placeholder token such as `ANTHROPIC_AUTH_TOKEN=local-router` | `~/.claude/settings.json` or wrapper env |
+| router -> GPT | No API key in router; `raine-claude-code-proxy` performs Codex/ChatGPT device auth | `~/.config/claude-code-proxy/codex/auth.json` |
+| router -> Gemini | No API key in router; Gemini proxy performs Google/Vertex auth | service-account JSON, ADC, or Gemini OAuth files |
+| router -> DeepSeek | Router injects `DEEPSEEK_API_KEY` | router `.env` |
+| router -> MiMo | Router injects `MIMO_API_KEY` | router `.env` |
+
+`GPT_API_KEY` and `GEMINI_API_KEY` are normally unset in this architecture. Do not copy OAuth refresh tokens, Google service-account JSON contents, or ChatGPT session data into the router `.env`.
+
 ## Router Features
 
 The router (`router.py`) implements intelligent multi-provider routing inspired by [LiteLLM](https://github.com/BerriAI/litellm):
@@ -149,3 +163,5 @@ Validated raine/Codex models:
 | `gpt-5.3-codex-fast` | pass |
 | `gpt-5.4-mini-fast` | pass |
 | `gpt-5.3-codex-spark-fast` | fail for the tested ChatGPT account |
+
+For GPT failures, check `raine-claude-code-proxy codex auth status` and the local proxy log before looking for an API key.

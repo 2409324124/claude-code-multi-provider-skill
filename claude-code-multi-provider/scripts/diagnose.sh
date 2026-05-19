@@ -96,6 +96,7 @@ section "cc-switch Profiles (masked)"
 mask_json_file "$HOME/.cc-switch/profiles.json"
 
 section "Provider Files"
+echo "Auth boundary: GPT and Gemini are normally authenticated by local proxy credential files; DeepSeek and MiMo normally use API keys in the router .env."
 for file in \
   "$HOME/.clawgate/token.json" \
   "$HOME/.config/claude-code-proxy/codex/auth.json" \
@@ -110,6 +111,14 @@ for file in \
     printf 'missing %s\n' "$file"
   fi
 done
+
+section "Router API Key Expectations"
+cat <<'EOF'
+GPT_API_KEY       usually unset; raine proxy handles Codex/ChatGPT auth
+GEMINI_API_KEY    usually unset; Gemini proxy handles Google/Vertex auth
+DEEPSEEK_API_KEY  required for direct DeepSeek official endpoint
+MIMO_API_KEY      required for direct MiMo Token Plan endpoint
+EOF
 
 if [[ "$HEALTH" -eq 1 ]]; then
   section "Health Checks"
