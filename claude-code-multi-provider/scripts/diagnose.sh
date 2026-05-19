@@ -71,13 +71,13 @@ health_check() {
 }
 
 section "Commands"
-for cmd in claude cc-switch clawgate claude-gpt claude-gemini claude-auto uv gcloud gemini ss rg node; do
+for cmd in claude cc-switch raine-claude-code-proxy clawgate claude-router claude-gpt claude-gemini claude-auto uv gcloud gemini ss rg node; do
   cmd_status "$cmd"
 done
 
 section "Listening Ports"
 if command -v ss >/dev/null 2>&1; then
-  ss -ltnp 2>/dev/null | rg '127\.0\.0\.1:8082|127\.0\.0\.1:8083|clawgate|uvicorn' || true
+  ss -ltnp 2>/dev/null | rg '127\.0\.0\.1:18765|127\.0\.0\.1:8082|127\.0\.0\.1:8083|127\.0\.0\.1:8084|raine-claude|clawgate|uvicorn' || true
 else
   echo "ss missing"
 fi
@@ -98,6 +98,8 @@ mask_json_file "$HOME/.cc-switch/profiles.json"
 section "Provider Files"
 for file in \
   "$HOME/.clawgate/token.json" \
+  "$HOME/.config/claude-code-proxy/codex/auth.json" \
+  "$HOME/tools/raine-claude-code-proxy/proxy.log" \
   "$HOME/tools/claude-code-proxy-gemini/.env" \
   "$GOOGLE_APPLICATION_CREDENTIALS" \
   "$HOME/.config/gcloud/application_default_credentials.json" \
@@ -111,6 +113,12 @@ done
 
 if [[ "$HEALTH" -eq 1 ]]; then
   section "Health Checks"
+  if command -v claude-router >/dev/null 2>&1; then
+    health_check "claude-router" claude-router
+  else
+    echo "claude-router missing"
+  fi
+
   if command -v claude-gpt >/dev/null 2>&1; then
     health_check "claude-gpt" claude-gpt
   else
@@ -126,5 +134,5 @@ if [[ "$HEALTH" -eq 1 ]]; then
   echo "MiMo and DeepSeek health checks are skipped because they require cc-switch use and mutate the active provider."
 else
   section "Health Checks"
-  echo "Skipped. Re-run with --health to check claude-gpt and claude-gemini only."
+  echo "Skipped. Re-run with --health to check claude-router, claude-gpt, and claude-gemini when present."
 fi
