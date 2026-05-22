@@ -86,7 +86,7 @@ TIMEOUT = httpx.Timeout(float(os.getenv("ROUTER_TIMEOUT", "600")), connect=10.0)
 # ─── Fallback chains ─────────────────────────────────────────────────────────
 FALLBACKS = {
     "gpt": [b.strip() for b in os.getenv("GPT_FALLBACKS", "mimo,deepseek,gemini").split(",") if b.strip()],
-    "deepseek": [b.strip() for b in os.getenv("DEEPSEEK_FALLBACKS", "gemini,mimo,gpt").split(",") if b.strip()],
+    "deepseek": [b.strip() for b in os.getenv("DEEPSEEK_FALLBACKS", "mimo,gpt,gemini").split(",") if b.strip()],
     "mimo": [b.strip() for b in os.getenv("MIMO_FALLBACKS", "gemini,deepseek").split(",") if b.strip()],
     "gemini": [b.strip() for b in os.getenv("GEMINI_FALLBACKS", "deepseek,mimo").split(",") if b.strip()],
 }

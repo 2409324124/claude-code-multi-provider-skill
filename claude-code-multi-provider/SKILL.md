@@ -74,7 +74,7 @@ Configure per-backend fallback order in `.env`:
 
 ```bash
 GPT_FALLBACKS=mimo,deepseek,gemini
-DEEPSEEK_FALLBACKS=gemini,mimo,gpt
+DEEPSEEK_FALLBACKS=mimo,gpt,gemini
 MIMO_FALLBACKS=gemini,deepseek
 GEMINI_FALLBACKS=deepseek,mimo
 ```

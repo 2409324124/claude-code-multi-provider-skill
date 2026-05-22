@@ -2,6 +2,15 @@
 .env
 .env.local
 .env.*.local
+*.env
+*.env.local
+*.env.secret
+*.env.private
+*.bak
+*.backup
+*.orig
+auth.json
+*.auth.json
 
 # Python
 __pycache__/

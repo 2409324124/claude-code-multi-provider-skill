@@ -2,6 +2,17 @@
 
 Make Claude Code route Opus/Sonnet/Haiku/SubAgent requests to GPT, DeepSeek, MiMo, and Gemini through an Anthropic-compatible local proxy. Includes a Codex skill, read-only diagnostics, cooldown-aware fallback, and secret-masked auditing.
 
+## Release Overview
+
+This skill packages a stable multi-provider Claude Code setup for agents that need one local Anthropic-compatible entrypoint with provider-specific routing:
+
+- GPT/Codex OAuth for primary Opus-class work
+- DeepSeek for Sonnet-class work
+- MiMo for Haiku-class work
+- Gemini/Vertex proxy for SubAgent and unmatched model names
+
+It is designed for private operator workstations: credentials stay in local auth stores or a private router `.env`, examples use placeholders only, and diagnostics mask token-like values.
+
 A Codex skill for configuring, auditing, and troubleshooting a Claude Code
 multi-provider setup with a local tier router:
 
@@ -76,7 +87,7 @@ Request → Primary Backend
 | Primary | Fallback 1 | Fallback 2 | Fallback 3 |
 |---------|-----------|-----------|-----------|
 | GPT | MiMo | DeepSeek | Gemini |
-| DeepSeek | Gemini | MiMo | GPT |
+| DeepSeek | MiMo | GPT | Gemini |
 | MiMo | Gemini | DeepSeek | — |
 | Gemini | DeepSeek | MiMo | — |
 
